@@ -1,0 +1,65 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+
+# Environment files (contain secrets)
+.env
+.env.local
+.env.*.local
+backend/.env
+mediaguardx/.env
+mediaguardx/mediaguardx/.env
+
+# Build output
+dist/
+build/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Uploads and generated files
+uploads/
+heatmaps/
+reports/
+adaptive_data/
+backend/adaptive_data/
+
+# ML model artifacts (large binary files)
+*.pth
+*.pt
+*.onnx
+*.h5
+# Exception: track the project's deepfake detection model
+!backend/models/deepfake_detector.pth
+*.pth.bak
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Old dataset (removed — low quality repeated GIFs)
+ffpp_images/
+**/ffpp_images/
+
+# Planning
+.planning/
