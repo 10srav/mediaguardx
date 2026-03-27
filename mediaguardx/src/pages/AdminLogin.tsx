@@ -16,11 +16,11 @@ export default function AdminLogin() {
     setError('');
     try {
       await login(email, password);
-      await fetchProfile();
+      // login() already calls fetchProfile() internally — no redundant call needed.
       const currentProfile = useAuthStore.getState().profile;
-      if (currentProfile?.role !== 'admin') {
+      if (currentProfile?.role !== 'admin' && currentProfile?.role !== 'investigator') {
         await useAuthStore.getState().logout();
-        setError('Access denied. Admin credentials required.');
+        setError('Access denied. Admin or investigator credentials required.');
         return;
       }
       navigate('/admin');

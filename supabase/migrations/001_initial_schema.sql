@@ -38,6 +38,9 @@ create policy "Admins can view all profiles" on profiles for select using (publi
 create policy "Users can update own profile" on profiles for update using (auth.uid() = id);
 create policy "Admins can update any profile" on profiles for update using (public.is_admin());
 create policy "Admins can delete profiles" on profiles for delete using (public.is_admin());
+-- Allow the signup trigger (SECURITY DEFINER) and service-role inserts to succeed.
+-- Normal users cannot insert arbitrary profiles because auth.uid() must match id.
+create policy "Users can insert own profile" on profiles for insert with check (auth.uid() = id);
 
 -- ============================================
 -- 2. Detections table

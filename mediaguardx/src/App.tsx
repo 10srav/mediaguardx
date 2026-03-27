@@ -17,6 +17,7 @@ import Register from '@/pages/Register';
 
 // Lazy-loaded pages (code-split into separate chunks)
 const ForgotPassword = lazy(() => import('@/pages/ForgotPassword'));
+const ResetPassword = lazy(() => import('@/pages/ResetPassword'));
 const AdminLogin = lazy(() => import('@/pages/AdminLogin'));
 const Dashboard = lazy(() => import('@/pages/Dashboard'));
 const DetectionResult = lazy(() => import('@/pages/DetectionResult'));
@@ -65,6 +66,7 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/admin/login" element={<AdminLogin />} />
 
           {/* Protected routes */}

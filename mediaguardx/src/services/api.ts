@@ -37,8 +37,9 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (!isDemoMode && error.response?.status === 401) {
+      // Sign out and let the auth state listener + ProtectedRoute handle the
+      // redirect via React Router instead of a hard page reload.
       supabase.auth.signOut();
-      window.location.href = '/login';
     }
     return Promise.reject(error);
   },

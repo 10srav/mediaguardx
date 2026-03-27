@@ -17,6 +17,34 @@ if (isDemoMode) {
   );
 }
 
+// In demo mode, create a proxy that throws descriptive errors if supabase
+// methods are accidentally called without an isDemoMode guard.
+const demoProxy = new Proxy({} as ReturnType<typeof createClient>, {
+  get(_target, prop) {
+    if (prop === 'auth') {
+      return new Proxy(
+        {},
+        {
+          get(_t, authProp) {
+            return () => {
+              throw new Error(
+                `Supabase not configured: cannot call auth.${String(authProp)}() in demo mode. ` +
+                  'Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env to enable live auth.',
+              );
+            };
+          },
+        },
+      );
+    }
+    return () => {
+      throw new Error(
+        `Supabase not configured: cannot call ${String(prop)}() in demo mode. ` +
+          'Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env to enable live auth.',
+      );
+    };
+  },
+});
+
 export const supabase = isDemoMode
-  ? (null as unknown as ReturnType<typeof createClient>)
+  ? demoProxy
   : createClient(supabaseUrl, supabaseAnonKey);

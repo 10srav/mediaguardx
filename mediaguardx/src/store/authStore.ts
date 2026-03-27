@@ -92,6 +92,13 @@ function makeDemoUser(du: DemoUser): User {
   return { id: du.id, email: du.email, name: du.name, role: du.role };
 }
 
+// ── Helpers ────────────────────────────────────────────────────────
+
+const CLEAR_STATE = { user: null, session: null, profile: null, isAuthenticated: false };
+
+// Guard against duplicate onAuthStateChange listeners (React StrictMode)
+let listenerRegistered = false;
+
 // ── Store ──────────────────────────────────────────────────────────
 
 export const useAuthStore = create<AuthState>()(
@@ -127,35 +134,39 @@ export const useAuthStore = create<AuthState>()(
             const profile = get().profile;
             if (profile && profile.is_active === false) {
               await supabase.auth.signOut();
-              set({ user: null, session: null, profile: null, isAuthenticated: false });
+              set(CLEAR_STATE);
             }
           } else {
             // No valid session: clear any stale persisted auth state
-            set({ user: null, session: null, profile: null, isAuthenticated: false });
+            set(CLEAR_STATE);
           }
         } catch (error) {
           console.error('Auth initialization error:', error);
-          set({ user: null, session: null, profile: null, isAuthenticated: false });
+          set(CLEAR_STATE);
         } finally {
           set({ initialized: true });
         }
 
-        supabase.auth.onAuthStateChange(async (event, session) => {
-          if (event === 'SIGNED_IN' && session) {
-            const user: User = {
-              id: session.user.id,
-              email: session.user.email || '',
-              name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || '',
-              role: 'user',
-            };
-            set({ session, user, isAuthenticated: true });
-            await get().fetchProfile();
-          } else if (event === 'SIGNED_OUT') {
-            set({ user: null, session: null, profile: null, isAuthenticated: false });
-          } else if (event === 'TOKEN_REFRESHED' && session) {
-            set({ session });
-          }
-        });
+        // Register auth state listener only once (React StrictMode calls effects twice)
+        if (!listenerRegistered) {
+          listenerRegistered = true;
+          supabase.auth.onAuthStateChange(async (event, session) => {
+            if (event === 'SIGNED_IN' && session) {
+              const user: User = {
+                id: session.user.id,
+                email: session.user.email || '',
+                name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || '',
+                role: 'user',
+              };
+              set({ session, user, isAuthenticated: true });
+              await get().fetchProfile();
+            } else if (event === 'SIGNED_OUT') {
+              set(CLEAR_STATE);
+            } else if (event === 'TOKEN_REFRESHED' && session) {
+              set({ session });
+            }
+          });
+        }
       },
 
       login: async (email: string, password: string) => {
@@ -234,7 +245,7 @@ export const useAuthStore = create<AuthState>()(
         if (!isDemoMode) {
           await supabase.auth.signOut();
         }
-        set({ user: null, session: null, profile: null, isAuthenticated: false });
+        set(CLEAR_STATE);
       },
 
       resetPassword: async (email: string) => {
@@ -255,17 +266,31 @@ export const useAuthStore = create<AuthState>()(
       fetchProfile: async () => {
         if (isDemoMode) return;
 
-        const { session } = get();
-        if (!session) return;
+        // Use a fresh session from Supabase (handles token refresh automatically)
+        // instead of reading the potentially stale session from Zustand state.
+        let accessToken: string | undefined;
+        try {
+          const { data: { session: freshSession } } = await supabase.auth.getSession();
+          accessToken = freshSession?.access_token;
+        } catch {
+          // Fall back to the Zustand-stored session if getSession fails
+          accessToken = get().session?.access_token;
+        }
+
+        if (!accessToken) return;
 
         try {
-          // Fetch profile via backend API to avoid RLS recursion on profiles table
           const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
           const response = await fetch(`${API_BASE_URL}/auth/me`, {
-            headers: {
-              'Authorization': `Bearer ${session.access_token}`,
-            },
+            headers: { 'Authorization': `Bearer ${accessToken}` },
           });
+
+          if (response.status === 401) {
+            // Token is invalid/expired and couldn't be refreshed — sign out cleanly
+            await supabase.auth.signOut();
+            set(CLEAR_STATE);
+            return;
+          }
 
           if (!response.ok) throw new Error('Failed to fetch profile');
 
