@@ -13,6 +13,7 @@ import {
   Image as ImageIcon,
 } from 'lucide-react';
 import { getDetectionResult, generateReport } from '@/services/api';
+import { API_BASE_URL } from '@/store/authStore';
 import { useToast } from '@/hooks/useToast';
 import Badge from '@/components/ui/Badge';
 import Skeleton from '@/components/ui/Skeleton';
@@ -331,8 +332,7 @@ export default function DetectionResultPage() {
       if (report.pdfUrl && report.pdfUrl !== '#') {
         try {
           const { default: apiClient } = await import('@/services/api');
-          const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
-          const baseUrl = apiBase.replace('/api', '');
+          const baseUrl = API_BASE_URL.replace('/api', '');
           const fullUrl = report.pdfUrl.startsWith('http')
             ? report.pdfUrl
             : `${baseUrl}${report.pdfUrl}`;

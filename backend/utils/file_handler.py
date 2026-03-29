@@ -73,9 +73,16 @@ async def save_uploaded_file(file: UploadFile, media_type: str, user_id: str) ->
 
 
 def get_file_path_for_detection(file_path: str) -> str:
-    """Get relative file path for storage in database."""
-    # Store relative path from upload directory
-    if file_path.startswith(settings.upload_dir):
-        return file_path
-    return file_path
+    """Get validated file path for storage in database.
+
+    Ensures the file path is within the upload directory to prevent
+    path traversal attacks.
+    """
+    real_path = Path(file_path).resolve()
+    allowed_root = Path(settings.upload_dir).resolve()
+
+    if not str(real_path).startswith(str(allowed_root)):
+        raise ValueError("File path outside allowed upload directory")
+
+    return str(real_path)
 

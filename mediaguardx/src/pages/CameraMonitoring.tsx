@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Camera, CameraOff, Wifi, WifiOff, SlidersHorizontal, Activity, Clock } from 'lucide-react';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore, API_BASE_URL } from '@/store/authStore';
 import Badge from '@/components/ui/Badge';
 
 interface AnalysisResult {
@@ -88,7 +88,7 @@ export default function CameraMonitoring() {
       return;
     }
 
-    const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+    const apiBase = API_BASE_URL;
     const wsBase = apiBase.replace(/^http/, 'ws');
     const wsUrl = `${wsBase}/live/ws`;
     const ws = new WebSocket(wsUrl);

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Users, Trash2, AlertTriangle } from 'lucide-react';
 import { getAdminUsers, updateUserRole, updateUserStatus, deleteUser } from '@/services/api';
+import { useAuthStore } from '@/store/authStore';
 import { useToast } from '@/hooks/useToast';
 import Badge from '@/components/ui/Badge';
 import Modal from '@/components/ui/Modal';
@@ -25,6 +26,7 @@ function getRoleBadgeVariant(role: string): 'info' | 'warning' | 'danger' | 'neu
 
 export default function UserManagement() {
   const toast = useToast();
+  const currentUser = useAuthStore((s) => s.user);
 
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,6 +50,10 @@ export default function UserManagement() {
   }, [fetchUsers]);
 
   async function handleRoleChange(userId: string, newRole: string): Promise<void> {
+    if (userId === currentUser?.id) {
+      toast.warning('You cannot change your own role.');
+      return;
+    }
     try {
       await updateUserRole(userId, newRole);
       setUsers((prev) =>
@@ -171,7 +177,9 @@ export default function UserManagement() {
                     <select
                       value={user.role}
                       onChange={(e) => handleRoleChange(user.id, e.target.value)}
-                      className="px-3 py-1.5 bg-slate-800/50 border border-slate-700 rounded-lg text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent cursor-pointer"
+                      disabled={user.id === currentUser?.id}
+                      className={`px-3 py-1.5 bg-slate-800/50 border border-slate-700 rounded-lg text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent ${user.id === currentUser?.id ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                      title={user.id === currentUser?.id ? 'You cannot change your own role' : 'Change user role'}
                     >
                       {ROLE_OPTIONS.map((role) => (
                         <option key={role} value={role}>

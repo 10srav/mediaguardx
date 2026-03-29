@@ -29,8 +29,12 @@ try:
     from PIL import Image
     import cv2
     ML_AVAILABLE = True
-except Exception:
+except ImportError:
     ML_AVAILABLE = False
+    logger.info("ML libraries not installed; ML features disabled.")
+except Exception as e:
+    ML_AVAILABLE = False
+    logger.error("Unexpected error loading ML libraries: %s", e)
 
 
 # Model runtime state (populated if model loaded)
@@ -38,6 +42,9 @@ _MODEL = None
 _DEVICE = None
 _CLASS_TO_IDX = None
 _TRANSFORM = None
+
+# Lock to protect reads/writes of model globals during adaptive retraining
+_MODEL_LOCK = threading.Lock()
 
 
 def _default_model_path() -> Path:

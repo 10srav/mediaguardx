@@ -1,13 +1,25 @@
 """Seed script to create admin user via Supabase."""
 import os
+import secrets
+import string
 from dotenv import load_dotenv
 from supabase import create_client
 
 load_dotenv()
 
 
+def _generate_password(length: int = 16) -> str:
+    """Generate a cryptographically secure random password."""
+    alphabet = string.ascii_letters + string.digits + "!@#$%&*"
+    return ''.join(secrets.choice(alphabet) for _ in range(length))
+
+
 def seed_admin():
-    """Create default admin user in Supabase."""
+    """Create default admin user in Supabase.
+
+    Reads ADMIN_EMAIL from env (defaults to admin@mediaguardx.com).
+    Generates a strong random password — never hardcoded.
+    """
     url = os.getenv("SUPABASE_URL")
     key = os.getenv("SUPABASE_SERVICE_KEY")
 
@@ -17,9 +29,9 @@ def seed_admin():
 
     supabase = create_client(url, key)
 
-    email = "admin@mediaguardx.com"
-    password = "Admin123!"
-    name = "Admin"
+    email = os.getenv("ADMIN_EMAIL", "admin@mediaguardx.com")
+    password = os.getenv("ADMIN_PASSWORD") or _generate_password()
+    name = os.getenv("ADMIN_NAME", "Admin")
 
     try:
         # Create auth user
@@ -35,10 +47,11 @@ def seed_admin():
 
         # Update profile to admin role
         supabase.table("profiles").update({"role": "admin"}).eq("id", user_id).execute()
-        print(f"Updated profile role to admin")
+        print("Updated profile role to admin")
 
-        print(f"\nAdmin credentials:")
-        print(f"  Email: {email}")
+        # Print credentials securely — only to stdout, never to logs
+        print(f"\nAdmin credentials (save these — they will not be shown again):")
+        print(f"  Email:    {email}")
         print(f"  Password: {password}")
         print(f"\nPlease change the password after first login!")
 

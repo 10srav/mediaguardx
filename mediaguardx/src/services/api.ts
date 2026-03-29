@@ -2,7 +2,7 @@ import axios from 'axios';
 import type { DetectionResult, Report } from '@/types';
 import { supabase, isDemoMode } from '@/lib/supabase';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+import { API_BASE_URL } from '@/store/authStore';
 
 const api = axios.create({
   baseURL: API_BASE_URL,

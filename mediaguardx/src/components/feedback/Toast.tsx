@@ -25,10 +25,14 @@ const iconColors = {
 export default function Toast({ toast, onDismiss }: { toast: ToastType; onDismiss: (id: string) => void }) {
   const Icon = icons[toast.type];
   return (
-    <div className={`flex items-center gap-3 px-4 py-3 rounded-lg border ${styles[toast.type]} backdrop-blur-sm shadow-lg animate-in slide-in-from-right`}>
-      <Icon className={`w-5 h-5 flex-shrink-0 ${iconColors[toast.type]}`} />
+    <div
+      role={toast.type === 'error' ? 'alert' : 'status'}
+      aria-live={toast.type === 'error' ? 'assertive' : 'polite'}
+      className={`flex items-center gap-3 px-4 py-3 rounded-lg border ${styles[toast.type]} backdrop-blur-sm shadow-lg animate-in slide-in-from-right`}
+    >
+      <Icon className={`w-5 h-5 flex-shrink-0 ${iconColors[toast.type]}`} aria-hidden="true" />
       <p className="text-sm text-slate-200 flex-1">{toast.message}</p>
-      <button onClick={() => onDismiss(toast.id)} className="text-slate-400 hover:text-slate-200">
+      <button onClick={() => onDismiss(toast.id)} className="text-slate-400 hover:text-slate-200" aria-label="Dismiss notification">
         <X className="w-4 h-4" />
       </button>
     </div>

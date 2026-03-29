@@ -39,7 +39,6 @@ interface DemoUser {
   id: string;
   email: string;
   name: string;
-  password: string;
   role: UserRole;
 }
 
@@ -55,7 +54,7 @@ function saveDemoUsers(users: DemoUser[]) {
   localStorage.setItem(DEMO_USERS_KEY, JSON.stringify(users));
 }
 
-// Seed default demo accounts on first load
+// Seed default demo accounts on first load (no passwords stored)
 function ensureDemoSeeded() {
   const users = getDemoUsers();
   if (users.length === 0) {
@@ -64,14 +63,12 @@ function ensureDemoSeeded() {
         id: 'demo-admin-001',
         email: 'admin@mediaguardx.com',
         name: 'Admin',
-        password: 'admin123',
         role: 'admin',
       },
       {
         id: 'demo-user-001',
         email: 'user@mediaguardx.com',
         name: 'Demo User',
-        password: 'user123',
         role: 'user',
       },
     ]);
@@ -92,12 +89,19 @@ function makeDemoUser(du: DemoUser): User {
   return { id: du.id, email: du.email, name: du.name, role: du.role };
 }
 
+// ── Centralized API URL ──────────────────────────────────────────
+export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+
 // ── Helpers ────────────────────────────────────────────────────────
 
 const CLEAR_STATE = { user: null, session: null, profile: null, isAuthenticated: false };
 
 // Guard against duplicate onAuthStateChange listeners (React StrictMode)
 let listenerRegistered = false;
+let authUnsubscribe: (() => void) | null = null;
+
+// Abort controller for in-flight profile fetches
+let profileAbortController: AbortController | null = null;
 
 // ── Store ──────────────────────────────────────────────────────────
 
@@ -150,7 +154,7 @@ export const useAuthStore = create<AuthState>()(
         // Register auth state listener only once (React StrictMode calls effects twice)
         if (!listenerRegistered) {
           listenerRegistered = true;
-          supabase.auth.onAuthStateChange(async (event, session) => {
+          const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
             if (event === 'SIGNED_IN' && session) {
               const user: User = {
                 id: session.user.id,
@@ -166,15 +170,18 @@ export const useAuthStore = create<AuthState>()(
               set({ session });
             }
           });
+          authUnsubscribe = () => subscription.unsubscribe();
         }
       },
 
       login: async (email: string, password: string) => {
+        if (get().loading) return; // Prevent concurrent login attempts
         set({ loading: true });
         try {
           if (isDemoMode) {
             const users = getDemoUsers();
-            const found = users.find((u) => u.email === email && u.password === password);
+            // Demo mode: match by email only (no passwords stored)
+            const found = users.find((u) => u.email === email);
             if (!found) throw new Error('Invalid email or password.');
             const profile = makeDemoProfile(found);
             set({ user: makeDemoUser(found), profile, isAuthenticated: true });
@@ -199,6 +206,7 @@ export const useAuthStore = create<AuthState>()(
       },
 
       register: async (email: string, password: string, name: string) => {
+        if (get().loading) return; // Prevent concurrent register attempts
         set({ loading: true });
         try {
           if (isDemoMode) {
@@ -210,7 +218,6 @@ export const useAuthStore = create<AuthState>()(
               id: `demo-${Date.now()}`,
               email,
               name,
-              password,
               role: 'user',
             };
             users.push(newUser);
@@ -242,10 +249,26 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: async () => {
+        // Cancel any in-flight profile fetch
+        profileAbortController?.abort();
+        profileAbortController = null;
+
         if (!isDemoMode) {
           await supabase.auth.signOut();
         }
+
+        // Unsubscribe auth listener on logout
+        if (authUnsubscribe) {
+          authUnsubscribe();
+          authUnsubscribe = null;
+          listenerRegistered = false;
+        }
+
         set(CLEAR_STATE);
+
+        // Clear UI state (toasts) to prevent information leaking across sessions
+        const { useUIStore } = await import('@/store/uiStore');
+        useUIStore.getState().clearToasts();
       },
 
       resetPassword: async (email: string) => {
@@ -266,8 +289,12 @@ export const useAuthStore = create<AuthState>()(
       fetchProfile: async () => {
         if (isDemoMode) return;
 
+        // Abort any previous in-flight fetch
+        profileAbortController?.abort();
+        const controller = new AbortController();
+        profileAbortController = controller;
+
         // Use a fresh session from Supabase (handles token refresh automatically)
-        // instead of reading the potentially stale session from Zustand state.
         let accessToken: string | undefined;
         try {
           const { data: { session: freshSession } } = await supabase.auth.getSession();
@@ -280,10 +307,13 @@ export const useAuthStore = create<AuthState>()(
         if (!accessToken) return;
 
         try {
-          const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
           const response = await fetch(`${API_BASE_URL}/auth/me`, {
             headers: { 'Authorization': `Bearer ${accessToken}` },
+            signal: controller.signal,
           });
+
+          // Check if this fetch was aborted (e.g. by a newer login)
+          if (controller.signal.aborted) return;
 
           if (response.status === 401) {
             // Token is invalid/expired and couldn't be refreshed — sign out cleanly
@@ -295,7 +325,7 @@ export const useAuthStore = create<AuthState>()(
           if (!response.ok) throw new Error('Failed to fetch profile');
 
           const data = await response.json();
-          if (data) {
+          if (data && !controller.signal.aborted) {
             const profile: Profile = {
               id: data.id,
               email: data.email,
@@ -313,6 +343,7 @@ export const useAuthStore = create<AuthState>()(
             set({ profile, user });
           }
         } catch (error) {
+          if (error instanceof DOMException && error.name === 'AbortError') return;
           console.error('Error fetching profile:', error);
         }
       },
